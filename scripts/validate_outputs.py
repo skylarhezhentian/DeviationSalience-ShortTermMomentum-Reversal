@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import re
 import subprocess
@@ -44,6 +45,32 @@ def finite_mean(values):
     values = np.asarray(values, dtype=float)
     good = values[np.isfinite(values)]
     return float(good.mean()) if len(good) else np.nan
+
+
+def unittest_cache_identity(root=ROOT):
+    """Fingerprint imported code, bundled fixtures, and the execution environment."""
+    root = Path(root)
+    paths = set()
+    for folder in ("src", "scripts", "tests"):
+        paths.update((root / folder).rglob("*.py"))
+    paths.update((root / "configs").rglob("*.json"))
+    for name in ("requirements.txt", "requirements-tested.txt", "config.json"):
+        if (root / name).is_file():
+            paths.add(root / name)
+    sample = root / "data" / "sample"
+    if sample.is_dir():
+        paths.update(path for path in sample.rglob("*") if path.is_file())
+    signature = {str(path.relative_to(root)): digest(path) for path in sorted(paths)}
+    versions = {}
+    for package in ("numpy", "pandas", "pyarrow", "matplotlib", "scipy", "statsmodels"):
+        try:
+            versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            versions[package] = "not installed"
+    environment = {"executable": str(Path(sys.executable).resolve()), "version": sys.version,
+                   "implementation": sys.implementation.name, "platform": sys.platform,
+                   "packages": versions}
+    return signature, environment
 
 
 def validate(data, out, repeat, result):
@@ -240,11 +267,12 @@ def validate(data, out, repeat, result):
           stocks=chosen, endpoint_rows=len(sampled_panel), raw_daily_rows=len(raw),
           includes_maximum_and_minimum_future_return_stocks=True)
 
-    signature_paths = sorted((ROOT / "src").glob("*.py")) + sorted((ROOT / "tests").glob("test_*.py"))
-    signature = {str(p.relative_to(ROOT)): digest(p) for p in signature_paths}
+    signature, execution_environment = unittest_cache_identity()
     previous_validation = read_json(out / "validation.json") if (out / "validation.json").exists() else {}
     old_tests = previous_validation.get("unittest", {})
-    if old_tests.get("source_and_test_sha256") == signature and old_tests.get("returncode") == 0:
+    if (old_tests.get("source_and_test_sha256") == signature
+            and old_tests.get("execution_environment") == execution_environment
+            and old_tests.get("returncode") == 0):
         result["unittest"] = {**old_tests, "reused_matching_source_and_test_result": True}
     else:
         command = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"]
@@ -253,7 +281,8 @@ def validate(data, out, repeat, result):
         match = re.search(r"Ran (\d+) tests?", transcript)
         result["unittest"] = {"command": command, "cwd": str(ROOT), "returncode": completed.returncode,
                               "tests_run": int(match.group(1)) if match else None, "output": transcript,
-                              "source_and_test_sha256": signature, "reused_matching_source_and_test_result": False}
+                              "source_and_test_sha256": signature, "execution_environment": execution_environment,
+                              "reused_matching_source_and_test_result": False}
     check("targeted_unittest_suite", result["unittest"]["returncode"] == 0,
           tests_run=result["unittest"]["tests_run"])
 

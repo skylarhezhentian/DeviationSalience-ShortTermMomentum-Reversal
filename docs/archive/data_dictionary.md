@@ -1,4 +1,4 @@
-> **Original design proposal.** This document predates the implemented empirical study. Proposed fields, tests, and extensions are not claims of completed work. See [the current README](README.md) and [implemented research protocol](docs/research_protocol.md) for the executed specification.
+> Early research proposal. Some proposed fields and tests were not implemented. See the [current project](../../README.md) and [evaluation protocol](../research_protocol.md).
 
 # Data Dictionary — Wind Pull List
 

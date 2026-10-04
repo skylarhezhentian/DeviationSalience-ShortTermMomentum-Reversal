@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import subprocess
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.request import urlopen
@@ -21,6 +23,12 @@ ROOT = Path(__file__).resolve().parents[1]
 RF_SERIES = "IR3TTS01CNM156N"
 RF_URL = "https://fred.stlouisfed.org/series/" + RF_SERIES
 RF_DOWNLOAD = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=IR3TTS01CNM156N&cosd=2020-12-01&coed=2025-11-30"
+MISSING_COLUMNS = [
+    "stock", "formation_month", "holding_month", "classification", "market_endpoint_date",
+    "holding_month_daily_rows", "first_holding_observation", "last_holding_observation",
+    "first_observation_after_endpoint", "last_observation_in_extract", "formation_equal_weight",
+    "formation_value_weight", "ds_bin", "ret_bin", "cause_verified",
+]
 
 
 def sha256(path):
@@ -89,6 +97,24 @@ def classify_missing(member, daily, calendar):
     }
 
 
+def audit_missing_holdings(members, raw, calendar):
+    """Return a stable audit schema, including when every holding is observed."""
+    missing = members.loc[members.future_ret.isna()]
+    relevant = set(missing.stock)
+    raw_groups = {stock: group for stock, group in raw.loc[raw.stock.isin(relevant)].groupby("stock")}
+    result = pd.DataFrame([classify_missing(row, raw_groups[row["stock"]], calendar)
+                           for row in missing.to_dict("records")], columns=MISSING_COLUMNS)
+    result["holding_month_daily_rows"] = result["holding_month_daily_rows"].astype("int64")
+    result["cause_verified"] = result["cause_verified"].astype(bool)
+    verified_merger = result.stock.eq("600068.SH") & result.holding_month.eq("2021-09")
+    result.loc[verified_merger, "cause_verified"] = True
+    result["verified_event"] = ""
+    result["event_source_url"] = ""
+    result.loc[verified_merger, "verified_event"] = "Merger-related termination of listing; successor shares/payout not modeled"
+    result.loc[verified_merger, "event_source_url"] = "https://www.sse.com.cn/disclosure/announcement/general/c/c_20210910_5587127.shtml"
+    return result
+
+
 def monthly_components(raw, calendar):
     """Separate raw close movement from vendor adjustment-factor movement."""
     d = raw.copy()
@@ -110,13 +136,80 @@ def write_json(path, value):
     path.write_text(json.dumps(value, indent=2, ensure_ascii=False, allow_nan=False) + "\n")
 
 
+def atomic_write(path, contents):
+    """Replace one owned output only after its complete contents are ready."""
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(contents)
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
+def prepare_rf(out, rf_csv=None, fetch=False):
+    """Import a read-only snapshot or fetch into an owned path; invalidate stale outputs."""
+    if fetch and rf_csv is not None:
+        raise ValueError("Choose either an input snapshot or --fetch-rf")
+    out = Path(out)
+    normalized, metadata = out / "rf_proxy_monthly.csv", out / "rf_source.json"
+    raw = Path(rf_csv) if rf_csv is not None else out / f"fred_{RF_SERIES}.csv"
+    if rf_csv is not None:
+        if not raw.is_file():
+            raise FileNotFoundError(f"Rate source does not exist: {raw}")
+        if raw.resolve() in {normalized.resolve(), metadata.resolve()}:
+            raise ValueError("Rate input must be separate from generated rate outputs")
+    owned_paths = [normalized, metadata] + ([raw] if fetch else [])
+    if any(path.is_symlink() for path in owned_paths):
+        raise ValueError("Rate output paths must not be symbolic links")
+    out.mkdir(parents=True, exist_ok=True)
+    info = {"available": False, "source_url": RF_URL, "download_url": RF_DOWNLOAD,
+            "definition": "OECD/FRED monthly quoted 3-month or90-day China Treasury rate; annual percentage divided by100 and12 gives approximate monthly simple carry.",
+            "limitations": "Not actual bill holding-period returns, not a certified historical vintage or known-at-formation series. Series endsNov2023; no extrapolation or filling. Retain locally; source terms and attribution apply.",
+            "citation": "OECD, Main Economic Indicators - complete database, https://doi.org/10.1787/data-00052-en, retrieved via FRED, accessed2026-10-04.",
+            "license_note": "FRED flags copyrighted data/citation required and reproduces OECD permission notice. No assertion of unrestricted redistribution."}
+    try:
+        if fetch:
+            with urlopen(RF_DOWNLOAD, timeout=30) as response:
+                contents = response.read(2_000_001)
+            if len(contents) > 2_000_000:
+                raise ValueError("Rate download exceeds the expected small snapshot size")
+            rf = normalize_rf(pd.read_csv(io.BytesIO(contents)))
+            if rf.empty:
+                raise ValueError("Rate source has no observed rates")
+            atomic_write(raw, contents)
+        elif raw.is_file():
+            rf = normalize_rf(pd.read_csv(raw))
+            if rf.empty:
+                raise ValueError("Rate source has no observed rates")
+        else:
+            normalized.unlink(missing_ok=True)
+            write_json(metadata, info)
+            return info
+        atomic_write(normalized, rf.to_csv(index=False, float_format="%.12g").encode())
+        info.update(available=True, rows=len(rf), start=str(rf.month.min()), end=str(rf.month.max()),
+                    raw_sha256=sha256(raw), normalized_sha256=sha256(normalized))
+        write_json(metadata, info)
+        return info
+    except Exception as error:
+        normalized.unlink(missing_ok=True)
+        info.update(available=False, status="import_failed", error_type=type(error).__name__)
+        write_json(metadata, info)
+        raise
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "outputs")
-    parser.add_argument("--rf-csv", type=Path)
-    parser.add_argument("--fetch-rf", action="store_true", help="Download one small public FRED snapshot; no credentials")
+    rate_source = parser.add_mutually_exclusive_group()
+    rate_source.add_argument("--rf-csv", type=Path)
+    rate_source.add_argument("--fetch-rf", action="store_true", help="Download one small public FRED snapshot; no credentials")
     args = parser.parse_args()
+    if args.rf_csv is not None and not args.rf_csv.is_file():
+        parser.error(f"Rate source does not exist: {args.rf_csv}")
     data, base = args.data_dir.resolve(), args.output_dir.resolve()
     out = base / "data_quality"
     if out == data or data in out.parents:
@@ -136,17 +229,7 @@ def main():
     if {str(k): str(v.date()) for k, v in actual_calendar.items()} != calendar:
         raise ValueError("Saved calendar does not match raw market endpoints")
     members = pd.read_parquet(base / "memberships.parquet")
-    missing = members.loc[members.future_ret.isna()]
-    relevant = set(missing.stock)
-    raw_groups = {stock: group for stock, group in raw.loc[raw.stock.isin(relevant)].groupby("stock")}
-    missing_audit = pd.DataFrame([classify_missing(row, raw_groups[row["stock"]], calendar)
-                                  for row in missing.to_dict("records")])
-    verified_merger = missing_audit.stock.eq("600068.SH") & missing_audit.holding_month.eq("2021-09")
-    missing_audit.loc[verified_merger, "cause_verified"] = True
-    missing_audit["verified_event"] = ""
-    missing_audit["event_source_url"] = ""
-    missing_audit.loc[verified_merger, "verified_event"] = "Merger-related termination of listing; successor shares/payout not modeled"
-    missing_audit.loc[verified_merger, "event_source_url"] = "https://www.sse.com.cn/disclosure/announcement/general/c/c_20210910_5587127.shtml"
+    missing_audit = audit_missing_holdings(members, raw, calendar)
     missing_audit.to_csv(out / "missing_holdings.csv", index=False, float_format="%.12g")
 
     components = monthly_components(raw, calendar)
@@ -193,22 +276,7 @@ def main():
         archive_info.update(sha256=sha256(archive), listing=listing,
                             finding="Only close.parquet, industry.parquet, value.parquet; listed sizes match supplied files; content identity not proven without extraction.")
 
-    rf_raw = args.rf_csv or out / f"fred_{RF_SERIES}.csv"
-    if args.fetch_rf:
-        with urlopen(RF_DOWNLOAD, timeout=30) as response:
-            contents = response.read(2_000_000)
-        rf_raw.write_bytes(contents)
-    rf_info = {"available": rf_raw.is_file(), "source_url": RF_URL, "download_url": RF_DOWNLOAD,
-               "definition": "OECD/FRED monthly quoted 3-month or90-day China Treasury rate; annual percentage divided by100 and12 gives approximate monthly simple carry.",
-               "limitations": "Not actual bill holding-period returns, not a certified historical vintage or known-at-formation series. Series endsNov2023; no extrapolation or filling. Retain locally; source terms and attribution apply.",
-               "citation": "OECD, Main Economic Indicators - complete database, https://doi.org/10.1787/data-00052-en, retrieved via FRED, accessed2026-10-04.",
-               "license_note": "FRED flags copyrighted data/citation required and reproduces OECD permission notice. No assertion of unrestricted redistribution."}
-    if rf_raw.is_file():
-        rf = normalize_rf(pd.read_csv(rf_raw))
-        rf.to_csv(out / "rf_proxy_monthly.csv", index=False, float_format="%.12g")
-        rf_info.update(rows=len(rf), start=str(rf.month.min()), end=str(rf.month.max()),
-                       raw_sha256=sha256(rf_raw), normalized_sha256=sha256(out / "rf_proxy_monthly.csv"))
-    write_json(out / "rf_source.json", rf_info)
+    rf_info = prepare_rf(out, args.rf_csv, args.fetch_rf)
     unchanged = all(sha256(data / name) == value for name, value in original_hashes.items())
     baseline_unchanged = all(sha256(base / name) == value for name, value in baseline_hashes.items())
     if not unchanged or not baseline_unchanged:

@@ -1,9 +1,7 @@
 # Reproduce the calculations
 
-The public demonstration requires no provider account, private data, API key,
-or network connection after dependencies are installed. It runs the same
-baseline code used for the local research sample, using clearly marked
-synthetic inputs.
+The included synthetic sample is ready to run. No provider account, private
+data, API key, or download is needed after dependencies are installed.
 
 ## Environment
 
@@ -23,16 +21,18 @@ system. Package versions and code hashes are recorded in each run manifest.
 ## One-command public demonstration
 
 ```bash
-python scripts/make_demo_data.py --run
+python scripts/run_demo.py
 ```
 
-This creates `outputs/synthetic_inputs/`, runs the baseline into
-`outputs/demo/`, renders PNG and SVG figures, and runs the independent output
-validator and unit tests. `outputs/demo/validation.json` records the result.
-The report and every figure are marked **synthetic software demo**. Synthetic
-outputs must never be presented as empirical findings about real stocks.
+This reads the three Parquet files already included in `data/sample/`, checks
+their hashes against `SYNTHETIC_DATA.json`, runs the baseline into
+`outputs/demo/`, renders figures, and runs the independent validator and unit
+tests. It does not generate or change input files. Open
+`outputs/demo/RESULTS.md` for the report, `outputs/demo/figures/` for the plots,
+and `outputs/demo/validation.json` for the checks. All are demonstration
+outputs, not findings about real stocks.
 
-The fixed seed is `20261004`. The default fixture has 6,000 invented
+The fixed seed is `20261004`. The included sample has 2,000 invented
 `DEMO*.SYN` identifiers and 26 monthly price endpoints, yielding 24 holding
 months after the required return and formation lags. Each month independently
 draws a fair common sign and bounded pair-specific return magnitudes. The
@@ -42,20 +42,34 @@ The same-sign cross sections are an intentional software fixture that keeps
 all target cells populated, not a realistic market model. No licensed input
 values or real stock identifiers are copied.
 
-Re-running the command replaces only directories bearing the synthetic marker.
-It refuses to overwrite nonempty, unmarked directories. Optional size and
-location controls are available through `python scripts/make_demo_data.py --help`.
-Very small fixtures can fail the baseline's 20-stock minimum; the documented
-default exercises all cells without changing that threshold.
+Re-running replaces only outputs bearing the synthetic marker. It refuses to
+overwrite a nonempty, unmarked output directory, and rejects altered sample
+files before running the analysis. Output files stay under the ignored
+`outputs/` directory.
+
+## Regenerate the sample, if wanted
+
+The generator is separate from the normal demo command. To reproduce the
+included sample in a new local directory:
+
+```bash
+python scripts/make_demo_data.py --stocks 2000 --holding-months 24 --seed 20261004 --data-dir outputs/synthetic_inputs
+python scripts/run_demo.py --data-dir outputs/synthetic_inputs --output-dir outputs/demo-regenerated
+```
+
+This leaves `data/sample/` unchanged. The generator supports other sizes and
+seeds; run `python scripts/make_demo_data.py --help` for its options. Small
+fixtures can fall below the baseline's 20-stock cell minimum. The included
+sample populates all 50 cells in all 24 holding months under both weighting
+schemes without changing that threshold.
 
 ## Individual stages
 
 ```bash
 python -m unittest discover -s tests -v
-python scripts/make_demo_data.py
-python scripts/run_baseline.py --data-dir outputs/synthetic_inputs --output-dir outputs/demo
+python scripts/run_baseline.py --data-dir data/sample --output-dir outputs/demo
 python scripts/plot_results.py --output-dir outputs/demo --hac-lags 3 --synthetic
-python scripts/validate_outputs.py --data-dir outputs/synthetic_inputs --output-dir outputs/demo
+python scripts/validate_outputs.py --data-dir data/sample --output-dir outputs/demo
 ```
 
 Prefer the one-command demo for shareable outputs: it also adds the synthetic
@@ -66,8 +80,9 @@ directory to the validator with `--repeat-output-dir`.
 
 ## Licensed local data
 
-The research baseline reads these three Parquet files from a directory you
-provide. Raw files are not included in this repository.
+The research baseline reads the same three-file schema from a directory you
+provide. Original company or provider data are not included in this repository;
+`data/sample/` contains only generated values.
 
 | File | Required columns | Meaning |
 |---|---|---|
@@ -154,7 +169,7 @@ reconstructs portfolio arithmetic and selected price returns from saved files,
 checks source hashes, and records tests in `validation.json`.
 
 The GitHub workflow discovers every `tests/test_*.py` file, including the
-hypothesis and data-quality fixtures, and runs the synthetic demonstration
+hypothesis and data-quality fixtures, and runs the included synthetic sample
 without private data or network-dependent tests. Its existence does not imply
 a successful hosted run. Passing a local or
 hosted check supports software consistency, not economic validity, historical

@@ -1,0 +1,19 @@
+{
+  "dataset_kind": "synthetic_software_fixture",
+  "endpoint_months": 26,
+  "holding_months": 24,
+  "identifiers": "Invented DEMO*.SYN identifiers; no licensed values are copied.",
+  "purpose": "Exercise schema, grouping, fixed weights, reports, plots, and validation; not realistic market simulation.",
+  "return_model": "Independent monthly fair sign times bounded pair-specific magnitude. Conditional expected next-month return is zero.",
+  "rows_per_input": 52000,
+  "schema_version": 1,
+  "seed": 20261004,
+  "source_sha256": {
+    "close.parquet": "5e02cccfd12c285ae273e4f7b558eb19d30e3fb141db96982c8d4ddf819be417",
+    "industry.parquet": "bf6cb7b887baf41349acba48e3ffb62301b50d51756e5b78bff0fe84301d7cb5",
+    "value.parquet": "52d3b403e0de362f4147d41b165b9c20149569fbe23393b4268a0c40a5c81f2b"
+  },
+  "stocks": 2000,
+  "ties": "Each pair shares prices and shocks. Tied signals are deliberately present.",
+  "warning": "SYNTHETIC SOFTWARE DEMO. Not real stock data or research evidence."
+}

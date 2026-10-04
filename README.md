@@ -1,85 +1,60 @@
-# Deviation Salience & Short-Term Return Predictability
+# Deviation Salience in Chinese Equities
 
-[![Tests and synthetic demonstration](https://github.com/skylarhezhentian/DeviationSalience-ShortTermMomentum-Reversal/actions/workflows/tests.yml/badge.svg)](https://github.com/skylarhezhentian/DeviationSalience-ShortTermMomentum-Reversal/actions/workflows/tests.yml)
+[![Tests](https://github.com/skylarhezhentian/DeviationSalience-ShortTermMomentum-Reversal/actions/workflows/tests.yml/badge.svg)](https://github.com/skylarhezhentian/DeviationSalience-ShortTermMomentum-Reversal/actions/workflows/tests.yml)
 
-**Does a stock's deviation from its industry peers help distinguish next-month momentum from reversal?**
+This project tests whether stocks that move unusually relative to their industry peers are more likely to reverse the following month. The question helps distinguish two explanations for a recent price move: information that continues to affect returns, or a temporary reaction that unwinds.
 
-An empirical asset-pricing study using Chinese equity data from January 2021 to November 2025. The project builds an industry-relative deviation-salience signal, forms monthly portfolios, and evaluates the hypothesis with matched-month comparisons, controlled cross-sectional regressions, and fixed robustness checks.
+## Method
 
-**Finding:** seven specifications, including the corrected baseline, do not establish a reliable positive low-salience versus high-salience WML contrast. All fourteen headline 95% confidence intervals include zero. The controlled regression interaction is also inconclusive. Coverage and missing corporate-action outcomes materially limit interpretation.
+Using Chinese equity data from January 2021 to November 2025, the analysis measures each stock's deviation from its industry peers, sorts stocks by that signal and their past-month return, and compares next-month winner-minus-loser returns. Portfolio membership and weights are fixed before future returns are joined.
 
-[Read the results](docs/results.md) · [Evaluation protocol](docs/research_protocol.md) · [Data sources and audit](docs/data_sources.md) · [Reproduce](docs/reproduce.md)
+The study also tests different universes and portfolio sizes, compares an unconditional return sort, and runs monthly cross-sectional regressions with size, momentum, and volatility controls. See the [method and assumptions](docs/research_protocol.md).
 
-## Main result
+## Results
 
-WML is the next-month return of formation-period winners minus losers. The central hypothesis predicts a positive **low-DS WML minus high-DS WML** contrast.
+The main comparison is **low-salience minus high-salience winner-minus-loser returns**:
 
-| Baseline weighting | Mean contrast / month | HAC t-statistic | 95% confidence interval | Matched months |
-|---|---:|---:|---:|---:|
-| Equal-weighted | +0.156% | 0.10 | [−2.909%, +3.221%] | 36 / 57 |
-| Formation-cap weighted | +1.227% | 0.80 | [−1.794%, +4.248%] | 36 / 57 |
+| Weighting | Mean per month | HAC t-statistic | 95% confidence interval |
+|---|---:|---:|---:|
+| Equal | +0.156% | 0.10 | [−2.909%, +3.221%] |
+| Market capitalization | +1.227% | 0.80 | [−1.794%, +4.248%] |
 
-The holding window is March 2021–November 2025. Intervals use three-calendar-lag Bartlett HAC with a normal critical value. The sample has already been examined, so these are exploratory historical estimates. Available-month means can be selected by missingness.
+Both estimates use 36 complete months out of a 57-month holding window. The intervals include zero across all seven specifications, so this sample does not establish the proposed effect. Unresolved holding returns and trading constraints remain limitations.
 
-![Robustness of the central contrast across seven specifications](docs/assets/robustness.svg)
+[Full results and figure](docs/results.md) · [Aggregate result tables](docs/tables/full/) · [Data audit](docs/data_sources.md)
 
-## Research implementation
+## Run
 
-- **Calendar-correct panel:** 6.07 million daily price observations become adjacent-calendar-month adjusted returns. Industry peers are leave-one-out averages with one observation per stock.
-- **Formation before outcomes:** signal groups, eligibility, and weights are fixed before joining next-month returns. Equal signals stay together; no arbitrary stock-order tie breaking.
-- **Explicit missing outcomes:** all 178 unavailable holdings are audited. Complete portfolios are primary; selected-sample and assumed-return scenarios are reported separately.
-- **Statistical evaluation:** 5 × 10 portfolio sorts, an unconditional return-sort benchmark, seven fixed specifications, three historical subperiods, and Fama–MacBeth regressions with size, momentum, and volatility controls.
-- **Targeted enrichment:** a documented FRED/OECD rate proxy supports a matched-window signal sensitivity. Official event records help distinguish real price jumps, suspensions, and merger-related disappearances.
-- **Reproducibility:** deterministic synthetic inputs, unit tests, independent saved-output checks, file hashes, and an automated public demo.
-
-## Run the public demo
-
-Python 3.11 is the tested environment. In a fresh virtual environment:
+Requires **Python 3.11** and Git. On macOS or Linux:
 
 ```bash
+git clone https://github.com/skylarhezhentian/DeviationSalience-ShortTermMomentum-Reversal.git deviation-salience
+cd deviation-salience
+python3.11 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements-tested.txt
-python scripts/make_demo_data.py --run
+python scripts/run_demo.py
 ```
 
-The command generates fictitious data, runs the same baseline pipeline, produces figures, and validates the outputs. No account, private dataset, or API key is needed. Every demonstration report and figure is labeled **synthetic**; its numbers are software fixtures, not market evidence.
+The demo uses the synthetic dataset included in `data/sample/`. It writes a report, charts, and validation results to `outputs/demo/`; no data account or download is needed. Its results demonstrate the software and are separate from the historical findings above.
 
-For the tests alone:
+Run tests with `python -m unittest discover -s tests -v`. [Reproduction instructions](docs/reproduce.md) cover Windows, individual commands, and the historical analysis.
 
-```bash
-python -m unittest discover -s tests -v
-```
+## Files
 
-[Full reproduction instructions](docs/reproduce.md) cover authorized local data, the optional rate download, hypothesis evaluation, and report generation. The original market data and stock-level derived records are excluded from the repository.
-
-## Signal and portfolio construction
-
-For stock return `r` and the equal-weighted return `peer` of its other eligible industry members:
-
-```text
-DS = |r − peer| / (|r| + |peer|)
-```
-
-The baseline explicitly sets the risk-free rate to zero. It requires at least three industry peers, sorts stocks into five DS groups and then ten return groups, and fixes equal or capitalization weights at formation. The immediately following calendar month supplies the untrimmed holding return. A final cell needs at least 20 stocks and every constituent's return to be available.
-
-Quantile labels use the right endpoint of the empirical distribution, preserving ties even when groups become unequal or empty. Around 29% of formation observations have DS exactly one. Missing calendar positions are retained in uncertainty calculations.
-
-The rate-proxy sensitivity replaces the denominator with `|r − rf| + |peer − rf|` while retaining raw holding returns. It is a limited retrospective approximation, not a realized Treasury-return series.
-
-## Navigate the project
-
-| Location | Purpose |
+| Folder | Contents |
 |---|---|
-| [`src/ds_baseline.py`](src/ds_baseline.py) | Monthly panel, signal, portfolios, matched spreads, HAC inference |
-| [`src/research.py`](src/research.py) | Restricted universes, benchmarks, regressions, missing-return and RF sensitivities |
-| [`scripts/`](scripts/) | Reproduction, audit, synthetic demo, independent validation, reports |
-| [`configs/robustness.json`](configs/robustness.json) | Fixed evaluation choices |
-| [`tests/`](tests/) | Timing, future-data independence, ties, arithmetic, inference, and data-quality tests |
-| [`docs/results.md`](docs/results.md) | Empirical findings, uncertainty, and aggregate tables |
+| `data/` | Included synthetic sample, input schema, and data notes |
+| `src/` | Return calculations, salience signal, portfolios, and statistical tests |
+| `scripts/` | Commands to run the demo, audit data, evaluate the hypothesis, and build reports |
+| `configs/` | Robustness specifications; baseline settings are in `config.json` |
+| `tests/` | Tests for timing, ties, missing returns, inference, and file handling |
+| `docs/` | Methods, results, figures, and aggregate tables; earlier proposals are in `docs/archive/` |
+| `.github/` | Automated tests and a demo run on every push |
+| `outputs/` | Generated local files; excluded from Git |
 
-## Interpretation and provenance
+## Data and reference
 
-This implementation adapts the question in Chen, Wang and Yu's [*Salience and Short-term Momentum and Reversals*](https://ssrn.com/abstract=4649393) to industry peers in the supplied equity universe. It does not claim to replicate the paper's U.S. results.
+The historical market data were supplied by a company and are not distributed here. Reproducing those estimates requires authorized access to the original inputs. The repository includes all data needed for the synthetic demo, along with the historical study's aggregate results. See [data details](data/README.md).
 
-The study corrects return timing, repeated-row peer calculations, calendar-gap handling, and future-availability effects in the earlier exploration. The original [research design](research_design.md), [variable definitions](variable_definitions.md), [data dictionary](data_dictionary.md), and [institutional background](ashare_institutional_background.md) remain labeled as proposals; the implemented protocol and results above describe the completed work.
-
-Point-in-time data vintages, complete delisting consideration, liquidity, short availability, transaction costs, and executable month-end prices remain unresolved. These results are statistical return comparisons; no risk-adjusted alpha, out-of-sample performance, or implementable trading profit is claimed.
+The research question comes from Chen, Wang and Yu, [*Salience and Short-term Momentum and Reversals*](https://ssrn.com/abstract=4649393). This project uses an industry-peer adaptation. The historical analysis is exploratory and does not establish an executable trading strategy.

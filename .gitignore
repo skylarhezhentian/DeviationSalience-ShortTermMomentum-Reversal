@@ -2,7 +2,15 @@ __pycache__/
 *.pyc
 .venv/
 .DS_Store
-data/
-# Local research outputs can contain licensed derived data and local paths.
-# Review sharing rights before selectively adding public figures or summaries.
+data/*
+!data/README.md
+!data/sample/
+data/sample/*
+!data/sample/close.parquet
+!data/sample/value.parquet
+!data/sample/industry.parquet
+!data/sample/SYNTHETIC_DATA.json
+# Company data and stock-level research outputs stay local.
 outputs/
+.env
+.env.*

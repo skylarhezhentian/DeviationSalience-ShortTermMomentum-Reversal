@@ -10,10 +10,6 @@ import json
 import shutil
 from pathlib import Path
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -53,6 +49,10 @@ def statistics_table(frame, labels):
 
 
 def robustness_plot(frame, destination):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 10, "svg.fonttype": "none"})
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 6.9), sharex=True, sharey=True)
     fig.subplots_adjust(left=0.245, right=0.965, top=0.75, bottom=0.20, wspace=0.16)
@@ -92,6 +92,25 @@ def robustness_plot(frame, destination):
     plt.close(fig)
 
 
+def copy_aggregate_tables(research_output, tables):
+    """Publish current summaries and remove only obsolete generated RF tables."""
+    required = ("spread_summary.csv", "regression_summary.csv")
+    for filename in required:
+        if not (research_output / filename).is_file():
+            raise FileNotFoundError(research_output / filename)
+    full = tables / "full"
+    full.mkdir(parents=True, exist_ok=True)
+    for filename in required:
+        shutil.copyfile(research_output / filename, full / filename)
+    rf_source = research_output / "rf_spread_summary.csv"
+    if rf_source.is_file():
+        shutil.copyfile(rf_source, full / rf_source.name)
+        return True
+    (full / rf_source.name).unlink(missing_ok=True)
+    (tables / "risk_free_sensitivity.csv").unlink(missing_ok=True)
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--baseline-output", type=Path, default=ROOT / "outputs")
@@ -102,12 +121,7 @@ def main():
     assets, tables = docs / "assets", docs / "tables"
     assets.mkdir(parents=True, exist_ok=True)
     tables.mkdir(parents=True, exist_ok=True)
-    full = tables / "full"
-    full.mkdir(parents=True, exist_ok=True)
-    for filename in ("spread_summary.csv", "regression_summary.csv", "rf_spread_summary.csv"):
-        source = args.research_output / filename
-        if source.exists():
-            shutil.copyfile(source, full / filename)
+    has_rf = copy_aggregate_tables(args.research_output, tables)
     summary = pd.read_csv(args.research_output / "spread_summary.csv")
     regression = pd.read_csv(args.research_output / "regression_summary.csv")
     contrast = selected(summary, series="lowDS_minus_highDS", missing_policy="complete", period="full", hac_lags=3)
@@ -147,7 +161,7 @@ def main():
         statistics_table(periods, {"period":"Holding period", "weighting":"Weighting"}), "",
         "These subperiods were not held out from the earlier exploratory work. Their short samples and changing coverage limit the interpretation of differences.", ""]
     rf_path = args.research_output / "rf_spread_summary.csv"
-    if rf_path.exists():
+    if has_rf:
         rf = pd.read_csv(rf_path)
         filt = {k:v for k,v in {"series":"lowDS_minus_highDS", "period":"full", "hac_lags":3, "missing_policy":"complete"}.items() if k in rf}
         rf = selected(rf, **filt)
@@ -157,11 +171,14 @@ def main():
             statistics_table(rf, {"rf_specification":"Comparison", "weighting":"Weighting"}), ""]
     else:
         lines += ["## Targeted interest-rate enrichment", "", "No RF sensitivity output was found. See the data-source record for availability; no completed RF test is claimed here.", ""]
+    aggregate_links = "the [portfolio grid](tables/full/spread_summary.csv) and [all regression coefficients](tables/full/regression_summary.csv)"
+    if has_rf:
+        aggregate_links += ", plus [rate-proxy comparisons](tables/full/rf_spread_summary.csv)"
     lines += ["## Interpretation and remaining limits", "",
         "The study produces inconclusive estimates with explicit sensitivity checks. Provider price adjustments, dated identifier histories, delisting consideration and execution constraints require further evidence. Public issuer/exchange checks and the added interest-rate data are documented in [Data sources and quality](data_sources.md).", "",
         "The original research inspiration is Chen, Wang and Yu, [Salience and Short-term Momentum and Reversals](https://ssrn.com/abstract=4649393). Its published U.S. findings are not results of this A-share study.", "",
         "## Reproduce and inspect", "",
-        "Read the [fixed evaluation protocol](research_protocol.md) and [reproduction instructions](reproduce.md). Complete aggregate estimates include the [portfolio grid](tables/full/spread_summary.csv), [all regression coefficients](tables/full/regression_summary.csv), and [rate-proxy comparisons](tables/full/rf_spread_summary.csv), including six-lag HAC and all subperiods. These are correlated exploratory estimates, not independent confirmatory tests. Tables contain only aggregate estimates. Raw vendor data, stock-level derived records and local file-path manifests are excluded from this public report.", ""]
+        f"Read the [fixed evaluation protocol](research_protocol.md) and [reproduction instructions](reproduce.md). Complete aggregate estimates include {aggregate_links}, including six-lag HAC and all subperiods. These are correlated exploratory estimates, not independent confirmatory tests. Tables contain only aggregate estimates. Raw vendor data, stock-level derived records and local file-path manifests are excluded from this public report.", ""]
     (docs / "results.md").write_text("\n".join(lines))
     print(docs / "results.md")
     print(assets / "robustness.png")

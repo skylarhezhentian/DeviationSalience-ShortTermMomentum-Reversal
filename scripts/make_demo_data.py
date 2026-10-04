@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 KIND = "synthetic_software_fixture"
 MARKER = "SYNTHETIC_DATA.json"
 DEFAULT_SEED = 20261004
+DATA_FILES = ("close.parquet", "value.parquet", "industry.parquet")
 
 
 def make_inputs(stocks=6000, holding_months=24, seed=DEFAULT_SEED):
@@ -66,6 +67,22 @@ def sha256(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def verify_inputs(directory):
+    """Check the declared fixture and all its hashes without writing to it."""
+    directory = Path(directory).resolve()
+    manifest = json.loads((directory / MARKER).read_text())
+    if manifest.get("dataset_kind") != KIND:
+        raise ValueError("Expected a clearly marked synthetic software fixture")
+    hashes = manifest.get("source_sha256", {})
+    if set(hashes) != set(DATA_FILES):
+        raise ValueError("Synthetic manifest must name exactly the three expected input files")
+    for filename in DATA_FILES:
+        path = directory / filename
+        if not path.is_file() or sha256(path) != hashes[filename]:
+            raise ValueError(f"Synthetic input integrity check failed: {filename}")
+    return manifest
+
+
 def write_inputs(directory, stocks=6000, holding_months=24, seed=DEFAULT_SEED):
     directory = Path(directory).resolve()
     if directory.exists() and any(directory.iterdir()):
@@ -74,8 +91,7 @@ def write_inputs(directory, stocks=6000, holding_months=24, seed=DEFAULT_SEED):
             raise ValueError("Refusing to write into a nonempty directory not marked as synthetic")
     directory.mkdir(parents=True, exist_ok=True)
     frames = make_inputs(stocks, holding_months, seed)
-    files = ("close.parquet", "value.parquet", "industry.parquet")
-    for filename, frame in zip(files, frames):
+    for filename, frame in zip(DATA_FILES, frames):
         frame.to_parquet(directory / filename, index=False)
     manifest = {
         "dataset_kind": KIND,
@@ -90,7 +106,7 @@ def write_inputs(directory, stocks=6000, holding_months=24, seed=DEFAULT_SEED):
         "return_model": "Independent monthly fair sign times bounded pair-specific magnitude. Conditional expected next-month return is zero.",
         "ties": "Each pair shares prices and shocks. Tied signals are deliberately present.",
         "purpose": "Exercise schema, grouping, fixed weights, reports, plots, and validation; not realistic market simulation.",
-        "source_sha256": {name: sha256(directory / name) for name in files},
+        "source_sha256": {name: sha256(directory / name) for name in DATA_FILES},
     }
     (directory / MARKER).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
     return manifest
@@ -98,6 +114,8 @@ def write_inputs(directory, stocks=6000, holding_months=24, seed=DEFAULT_SEED):
 
 def run_demo(data_dir, output_dir):
     data_dir, output_dir = Path(data_dir).resolve(), Path(output_dir).resolve()
+    verify_inputs(data_dir)
+    source_hashes = {name: sha256(data_dir / name) for name in (*DATA_FILES, MARKER)}
     if output_dir == data_dir or data_dir in output_dir.parents:
         raise ValueError("Demo output must be outside the synthetic input directory")
     if output_dir.exists() and any(output_dir.iterdir()):
@@ -115,6 +133,8 @@ def run_demo(data_dir, output_dir):
     ]
     for command in commands:
         subprocess.run(command, cwd=ROOT, check=True)
+    if any(sha256(data_dir / name) != expected for name, expected in source_hashes.items()):
+        raise RuntimeError("Synthetic source files changed during the demonstration")
     report = output_dir / "RESULTS.md"
     report.write_text("# SYNTHETIC SOFTWARE DEMO\n\n"
                       "These outputs use invented identifiers and generated prices. They test the software only and provide no evidence about real returns or deviation salience. The generated baseline report below describes the software's calculations.\n\n"

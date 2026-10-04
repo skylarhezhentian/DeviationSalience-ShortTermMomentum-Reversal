@@ -3,15 +3,56 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 
-from scripts.make_demo_data import KIND, MARKER, make_inputs, write_inputs
+from scripts.make_demo_data import (
+    DATA_FILES, KIND, MARKER, ROOT, make_inputs, run_demo, sha256,
+    verify_inputs, write_inputs,
+)
 from src.ds_baseline import form_portfolios, monthly_panel
 
 
 class SyntheticDemoTests(unittest.TestCase):
+    def test_packaged_sample_is_unchanged_and_matches_the_generator(self):
+        sample = ROOT / "data/sample"
+        before = {name: (sha256(sample / name), (sample / name).stat().st_mtime_ns)
+                  for name in (*DATA_FILES, MARKER)}
+        manifest = verify_inputs(sample)
+        generated = make_inputs(manifest["stocks"], manifest["holding_months"], manifest["seed"])
+        for filename, expected in zip(DATA_FILES, generated):
+            pd.testing.assert_frame_equal(pd.read_parquet(sample / filename), expected)
+        after = {name: (sha256(sample / name), (sample / name).stat().st_mtime_ns)
+                 for name in (*DATA_FILES, MARKER)}
+        self.assertEqual(before, after)
+
+    def test_corrupt_input_is_rejected_before_running_analysis(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory) / "data"
+            write_inputs(data, stocks=40, holding_months=3, seed=12)
+            with (data / "close.parquet").open("ab") as stream:
+                stream.write(b"unexpected change")
+            with patch("scripts.make_demo_data.subprocess.run") as process:
+                with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                    run_demo(data, Path(directory) / "out")
+                process.assert_not_called()
+            self.assertFalse((Path(directory) / "out").exists())
+
+    def test_demo_never_overwrites_unmarked_research_outputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            data, out = Path(directory) / "data", Path(directory) / "research"
+            write_inputs(data, stocks=40, holding_months=3, seed=12)
+            out.mkdir()
+            report = out / "RESULTS.md"
+            report.write_text("Existing research results")
+            with patch("scripts.make_demo_data.subprocess.run") as process:
+                with self.assertRaisesRegex(ValueError, "not marked as a synthetic demo"):
+                    run_demo(data, out)
+                process.assert_not_called()
+            self.assertEqual(report.read_text(), "Existing research results")
+
     def test_seed_repeats_exact_frames_and_different_seed_changes_prices(self):
         first = make_inputs(stocks=40, holding_months=3, seed=12)
         second = make_inputs(stocks=40, holding_months=3, seed=12)
