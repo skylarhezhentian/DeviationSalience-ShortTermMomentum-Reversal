@@ -1,3 +1,5 @@
+> **Original design proposal.** This document predates the implemented empirical study. Proposed fields, tests, and extensions are not claims of completed work. See [the current README](README.md) and [implemented research protocol](docs/research_protocol.md) for the executed specification.
+
 # Data Dictionary — Wind Pull List
 
 What to pull from Wind, mapped to the variables in
@@ -104,3 +106,4 @@ analyst_cov (opt), inst_own (opt), abn_volume (opt)
 The synthetic generator (`scripts/00_simulate_data.py`) emits exactly this schema, so code
 written against simulated data runs unchanged on real Wind data once the loader is pointed at
 `data/raw/`.
+

@@ -1,3 +1,5 @@
+> **Original design proposal.** This document predates the implemented empirical study. Proposed fields, tests, and extensions are not claims of completed work. See [the current README](README.md) and [implemented research protocol](docs/research_protocol.md) for the executed specification.
+
 # Research Design — Deviation Salience in China A-Shares
 
 *A replication and friction-aware extension of Chen, Wang & Yu (2024), "Salience and
@@ -664,3 +666,4 @@ To keep the project from becoming data mining, every test is tagged **before** r
 The main hypothesis (DS governs the sign of short-horizon predictability; frictions modulate
 it) is fixed in advance. Filters are not added until a result "looks good"; any deviation from
 this plan is documented as exploratory.
+

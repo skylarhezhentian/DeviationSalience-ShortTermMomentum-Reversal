@@ -1,3 +1,5 @@
+> **Original design proposal.** This document predates the implemented empirical study. Proposed fields, tests, and extensions are not claims of completed work. See [the current README](README.md) and [implemented research protocol](docs/research_protocol.md) for the executed specification.
+
 # A-Share Institutional Background
 
 Why the China A-share market is not a drop-in for the U.S. setting, and how each feature may
@@ -127,3 +129,4 @@ of all of this and of the shorting infeasibility in §4.
 | Boards (±20%) | Possibly stronger/faster effect on STAR/ChiNext | §6.3, Table 5 |
 | Retail dominance | Amplified overreaction | §6.5, Table 8 |
 | Transaction costs | Erodes net tradable returns | §7, Table 11 |
+

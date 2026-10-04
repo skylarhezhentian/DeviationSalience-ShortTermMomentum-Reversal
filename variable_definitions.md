@@ -1,3 +1,5 @@
+> **Original design proposal.** This document predates the implemented empirical study. Proposed fields, tests, and extensions are not claims of completed work. See [the current README](README.md) and [implemented research protocol](docs/research_protocol.md) for the executed specification.
+
 # Variable Definitions
 
 Exact formula, data source, and **timing** for every variable. The governing rule is the
@@ -88,3 +90,4 @@ All controls are dated **[t]** (known by formation) and predict the **[t+1]** re
 
 If a quantity cannot be placed strictly to the **left** of the formation bar, it cannot be used
 to predict `t+1`. This single check is the most important guard in the whole project.
+

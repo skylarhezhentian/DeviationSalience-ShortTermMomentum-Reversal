@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+data/
+# Local research outputs can contain licensed derived data and local paths.
+# Review sharing rights before selectively adding public figures or summaries.
+outputs/

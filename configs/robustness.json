@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "status": "fixed_before_this_evaluation; historical_sample_already_seen; exploratory",
+  "primary_hypothesis": "low_DS_WML_minus_high_DS_WML_positive",
+  "return_target": "next_calendar_month_raw_adjusted_price_return",
+  "missing_policies": ["complete", "observed_only_selected_sample", "unknown_return_zero_scenario", "unknown_return_loss100_scenario"],
+  "weightings": ["equal", "value"],
+  "hac_lags": [3, 6],
+  "primary_hac_lags": 3,
+  "periods": [
+    {"name": "full", "start": "2021-03", "end": "2025-11"},
+    {"name": "early_2021_2022", "start": "2021-03", "end": "2022-12"},
+    {"name": "middle_2023", "start": "2023-01", "end": "2023-12"},
+    {"name": "late_2024_2025", "start": "2024-01", "end": "2025-11"}
+  ],
+  "specifications": [
+    {"name": "baseline", "universe": "all", "min_peers": 3, "ds_bins": 5, "ret_bins": 10, "min_cell": 20},
+    {"name": "no_bj", "universe": "no_bj", "min_peers": 3, "ds_bins": 5, "ret_bins": 10, "min_cell": 20},
+    {"name": "no_bj_no_bottom20cap", "universe": "no_bj_no_bottom20cap", "min_peers": 3, "ds_bins": 5, "ret_bins": 10, "min_cell": 20},
+    {"name": "coarse_3x5", "universe": "all", "min_peers": 3, "ds_bins": 3, "ret_bins": 5, "min_cell": 20},
+    {"name": "minimum_5_peers", "universe": "all", "min_peers": 5, "ds_bins": 5, "ret_bins": 10, "min_cell": 20},
+    {"name": "minimum_cell_10", "universe": "all", "min_peers": 3, "ds_bins": 5, "ret_bins": 10, "min_cell": 10},
+    {"name": "minimum_cell_30", "universe": "all", "min_peers": 3, "ds_bins": 5, "ret_bins": 10, "min_cell": 30}
+  ],
+  "regression": {
+    "specifications": ["baseline", "no_bj", "no_bj_no_bottom20cap"],
+    "models": ["uncontrolled", "controls"],
+    "min_observations": 100,
+    "max_condition_number": 100000000,
+    "standardize_on": "formation_covariate_complete_cohort_before_future_join_ddof0",
+    "base_predictors": ["ret", "ds"],
+    "interaction": "z_ret_times_z_ds_not_restandardized",
+    "controls": ["logcap", "momentum_12_2", "monthly_volatility_12"],
+    "momentum_formation_lags": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "volatility_formation_lags": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    "missing_dependent_return": "complete_case_selected_sample_with_coverage_not_delisting_correction"
+  },
+  "multiplicity": "all_fixed_specs_reported; no_parameter_selection; no_multiple_testing_adjustment",
+  "liquidity_control": "unavailable_in_supplied_fields_not_invented",
+  "rf_sensitivity": {
+    "source_series": "IR3TTS01CNM156N",
+    "file": "outputs/data_quality/rf_proxy_monthly.csv",
+    "formula": "abs(ret-peer_ret)/(abs(ret-rf)+abs(peer_ret-rf))",
+    "window": "formation_months_with_observed_proxy_only_no_fill",
+    "comparison": "recomputed_proxy_DS_vs_zero_RF_DS_matched_formation_window_and_paired_holding_months",
+    "status": "retrospective_approximate_carry_proxy_not_realized_bill_return_or_point_in_time"
+  },
+  "out_of_sample": false,
+  "raw_data_publishing": false
+}

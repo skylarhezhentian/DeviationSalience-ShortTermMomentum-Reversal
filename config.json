@@ -1,0 +1,19 @@
+{
+  "baseline_version": "1.0.0",
+  "signal": "industry_leave_one_out_zero_rf_proxy",
+  "signal_return": "raw_adjusted_close_to_close_monthly_return",
+  "peer_weights": "equal",
+  "risk_free_proxy": 0.0,
+  "min_peers": 3,
+  "ds_bins": 5,
+  "return_bins": 10,
+  "minimum_stocks_per_final_cell": 20,
+  "tie_rule": "right_endpoint_empirical_cdf_no_split_ties",
+  "portfolio_weightings": ["equal", "value"],
+  "missing_return_policy": "primary_unavailable_if_any_formed_holding_is_unknown",
+  "hac_lags": 3,
+  "hac_small_sample_correction": false,
+  "ci": "normal_95_percent",
+  "out_of_sample": false,
+  "raw_data_publishing": false
+}

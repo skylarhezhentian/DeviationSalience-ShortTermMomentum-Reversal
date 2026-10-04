@@ -1,0 +1,37 @@
+# Fixed exploratory hypothesis evaluation
+
+This protocol and `configs/robustness.json` are written before computing this evaluation. The historical sample and baseline have already been examined. This is a fixed, bounded exploratory analysis, not a prospective preregistration or a newly created holdout. All listed choices are reported; no parameter search selects the most favorable result.
+
+## Question and benchmark
+
+Does industry-peer deviation salience (DS) distinguish subsequent momentum from reversal beyond an unconditional past-return sort? The directional portfolio hypothesis is positive **low-DS WML minus high-DS WML**. WML is the next-calendar-month raw return of formation-period winners minus losers. Negative unconditional WML indicates reversal. Positive DS interaction alone does not establish that low-DS winners actually exhibit momentum.
+
+The unconditional sort uses exactly the DS-eligible formation cohort for that specification, ignoring DS when ranking formation returns. Its return quantiles and formation weights are fixed before future returns are joined. Low- and high-DS WML are also compared against the unconditional WML on paired, common holding months. A separate common-month table evaluates all three WML series and their contrasts on the same intersection. Individual-leg means on different months must not be subtracted to infer an interaction.
+
+## Fixed alternatives
+
+The baseline is the existing 5 DS × 10 return sort, at least 3 peers and 20 final-cell holdings. Run the seven specifications in the configuration: baseline, exclude `.BJ` exchange suffix, additionally exclude the bottom formation-cap quintile, 3 × 5 groups, at least 5 peers, and final-cell minimums of 10 and 30. No factorial grid or optimization is run. Both equal and formation-cap weighting are reported.
+
+Universe selection uses only current formation return, industry and positive capitalization. Capitalization quintiles use the baseline right-end empirical CDF, preserving ties; observations whose cap percentile is at most 20% are excluded. Peers and DS are recomputed within each eligible restricted universe. Future price returns remain available even if next month's stock fails a formation-universe filter.
+
+The primary missing-return policy stays unchanged: any unknown holding return makes a formed portfolio unavailable; no ex-post reweighting repairs it. The separate `observed_only_selected_sample` sensitivity renormalizes weights over known holding returns, only in cells meeting the original formation count. It is a selected-sample alternative, not a delisting adjustment, a missingness correction, or primary evidence. Unavailable and empty cells remain visible.
+
+Two additional missing-return scenarios assign exactly 0% or −100% to every unknown holding return, retain the original formation weights and cell minimums, and leave known returns unchanged. These are explicit assumptions, not recovered delisting returns. With long-minus-short legs these uniform assignments are **not** sharp mathematical bounds on the spread or DS interaction. Both scenarios are shown without choosing a preferred imputation.
+
+Holding-period cuts are 2021–2022, 2023, and 2024–November 2025, alongside the full sample. These chronological subperiods are exploratory because all data have already been seen. Period definitions use holding months, not formation months. HAC means use Bartlett calendar lags 3 and 6, retain all intervening missing months, and report observed n, possible calendar months, coverage, and actual first/last observed month. Normal 95% intervals use no finite-sample correction. These are descriptive inferential intervals for available-month means, not selection-bias corrections. There is no multiple-testing correction; isolated significance across the alternatives is insufficient evidence.
+
+## Fama–MacBeth regressions
+
+Each formation month t predicts the raw price return in exactly t+1. First estimate unweighted cross-sectional OLS with intercept, z-scored formation return, z-scored DS, and their product. A second model adds z-scored log formation cap, prior 12–2 momentum, and trailing monthly volatility. Run both models for baseline, no-BJ, and no-BJ/no-bottom-cap universes. No liquidity variable exists in the supplied panel, so no liquidity control is claimed.
+
+For holding month h=t+1, momentum compounds the eleven monthly returns h−12 through h−2 (formation t−11 through t−1). Volatility is the sample SD of twelve monthly returns through formation t (t−11 through t). Every lag uses an explicit stock and calendar-month join; missing months are never compressed or forward-filled, and all required lag returns must exist. New listings and gaps reduce the controlled-regression sample; coverage is exported.
+
+Within each month/model, standardization uses the formation cohort with complete predictors **before** examining t+1 return availability, with population SD. The return×DS predictor is the product of those two z-scores and is not restandardized. Thus its coefficient is the change in the next-month return slope per one formation-return SD when DS rises one formation DS SD. The formation-return coefficient is the slope at mean DS. A negative interaction is consistent with a more negative return slope at higher DS. Controls have one-SD units within their formation cohort. Means over months therefore average effects in month-specific SD units, not raw-return derivative units.
+
+OLS uses available dependent returns only and reports formed predictor-complete count, outcome-observed count, response coverage and missing responses. This complete-case regression is selected by outcome availability; it cannot preserve the all-holdings portfolio estimand or cure delisting bias. Require at least 100 observations, full numerical column rank, finite nonzero predictor scales, and design condition number below 1e8. Failed months remain on the coefficient calendar. Monthly coefficients are averaged with the same calendar-preserving HAC settings and subperiods. Diagnostics include regression rank, condition, R², and residual degrees of freedom. No return clipping or winsorization is applied.
+
+## Reproducibility and scope
+
+One targeted RF sensitivity uses the official FRED/OECD China three-month Treasury yield series IR3TTS01CNM156N if available. Monthly carry is approximated by annual percentage yield /100/12, not a realized bill holding return. Recompute DS as |ret−peer_ret|/(|ret−rf|+|peer_ret−rf|), with the exact formation-month proxy and unchanged raw holding returns. Compare against zero-RF DS on identical proxy-available formation months, with paired common holding-month contrasts. Missing RF months are not filled; the published series ends in November 2023. This retrospective data-vintage and carry-proxy sensitivity is not an exact paper replication or a point-in-time executable signal. It is separately tagged from the seven fixed principal specifications.
+
+Consume the existing hashed `outputs/monthly_panel.parquet` and baseline manifest read-only. Research outputs go only under `outputs/research/`; original code, inputs and baseline outputs are unchanged. Export code/config/protocol/input/output hashes and package versions. Stock-level derived records remain local. This evaluation establishes neither executable trading profits nor risk-adjusted alpha: liquidity, costs, shortability, suspension status, true point-in-time data vintages, and delisting payouts remain unverified.
